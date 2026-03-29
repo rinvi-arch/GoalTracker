@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>15-Day Sprint — Focus & Clarity</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">15-Day Sprint</div>
+    <nav class="nav">
+      <button class="active">Active Sprint</button>
+    </nav>
+    <div class="support">Support</div>
+  </aside>
+
+  <main class="main">
+    <header class="hero">
+      <div class="hero-inner">
+        <div>
+          <h1>Focus & Clarity</h1>
+          <p class="sub">A simple daily tracker — gentle, minimal, and easy to scan.</p>
+        </div>
+        <div class="settings-toggle">
+          <button id="settings-toggle">Settings</button>
+        </div>
+      </div>
+    </header>
+
+    <section id="progress" class="progress">
+      <div class="progress-left">
+        <div class="progress-card large">
+          <div class="card-label">Completion</div>
+          <div class="card-number" id="completion-percent">0%</div>
+          <div class="progress-bar"><div id="completion-bar" class="bar-fill" style="width:0%"></div></div>
+        </div>
+      </div>
+      <div class="progress-right">
+        <div class="progress-card">
+          <div class="card-label">Streak</div>
+          <div class="card-number" id="streak-count">0</div>
+        </div>
+        <div class="progress-card">
+          <div class="card-label">Remaining</div>
+          <div class="card-number" id="remaining-count">0</div>
+        </div>
+        <div class="progress-card">
+          <div class="card-label">Missed</div>
+          <div class="card-number" id="missed-count">0</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="settings-panel" class="controls collapsed">
+      <div class="controls-row">
+        <label>Start: <input id="start-date" type="date" /></label>
+        <label>End: <input id="end-date" type="date" /></label>
+        <label>Start Weight (lbs): <input id="start-weight" type="number" step="0.1" placeholder="lbs"/></label>
+        <label>Target (lbs): <input id="target-weight" type="number" step="0.1" placeholder="lbs"/></label>
+        <label>Water Limit (L): <input id="water-limit" type="number" step="0.1" value="2"/></label>
+      </div>
+    </section>
+
+    <section class="table-wrap">
+      <table class="sprint-table" role="grid">
+        <thead>
+          <tr>
+            <th class="col-day">Day</th>
+            <th class="col-date">Date</th>
+            <th class="col-move">Movement<span class="col-sub">(Move)</span></th>
+            <th class="col-water">Water<span class="col-sub">(Hydrate)</span></th>
+            <th class="col-weight">Weight<span class="col-sub">(lbs)</span></th>
+            <th class="col-notes">Notes</th>
+          </tr>
+        </thead>
+        <tbody id="sprint-body">
+        </tbody>
+      </table>
+      <div class="table-actions">
+        <button id="toggle-show">Show all days</button>
+      </div>
+    </section>
+
+    <footer class="footer">"Simplicity is the ultimate sophistication."</footer>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
