@@ -1,5 +1,30 @@
-// Sprint app with settings, 7-day preview + expand, and persistence
-(function(){
+// Sprint app — localStorage + Firestore sync
+;(function(){
+
+  // ── Firebase setup ──────────────────────────────────────────────────────────
+  const firebaseConfig = {
+    apiKey: "AIzaSyDi60Z2_SZhai5fWGzMi1I_qzvF9m9R4RY",
+    authDomain: "goaltracker-1542a.firebaseapp.com",
+    projectId: "goaltracker-1542a",
+    storageBucket: "goaltracker-1542a.firebasestorage.app",
+    messagingSenderId: "897924085621",
+    appId: "1:897924085621:web:b889cf2333ecaf6ce8853c"
+  }
+  firebase.initializeApp(firebaseConfig)
+  const db = firebase.firestore()
+
+  function getUserId(){
+    let id = localStorage.getItem('sprintUserId')
+    if(!id){
+      id = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36))
+      localStorage.setItem('sprintUserId', id)
+    }
+    return id
+  }
+
+  const userDoc = db.collection('users').doc(getUserId())
+
+  // ── DOM refs ────────────────────────────────────────────────────────────────
   const tbody = document.getElementById('sprint-body')
   const startInput = document.getElementById('start-date')
   const endInput = document.getElementById('end-date')
@@ -13,18 +38,22 @@
   const completedEl = document.getElementById('completed-count')
   const missedEl = document.getElementById('missed-count')
 
-  let settings = loadSettings()
-  let data = loadData()
+  // ── State ───────────────────────────────────────────────────────────────────
+  let settings = loadSettingsLocal()
+  let data = loadDataLocal()
   let showAll = false
 
-  // initialize inputs
-  startInput.value = settings.startDate
-  endInput.value = settings.endDate
-  startWeightInput.value = settings.startWeight || ''
-  targetWeightInput.value = settings.targetWeight || ''
-  waterLimitInput.value = settings.waterLimit || 2
+  // ── Init inputs ─────────────────────────────────────────────────────────────
+  function applySettingsToInputs(){
+    startInput.value = settings.startDate
+    endInput.value = settings.endDate
+    startWeightInput.value = settings.startWeight || ''
+    targetWeightInput.value = settings.targetWeight || ''
+    waterLimitInput.value = settings.waterLimit || 2
+  }
+  applySettingsToInputs()
 
-  // live-apply settings on change
+  // ── Settings listeners ──────────────────────────────────────────────────────
   ;[startInput,endInput,startWeightInput,targetWeightInput,waterLimitInput].forEach(inp=>{
     inp.addEventListener('change', ()=>{
       settings.startDate = startInput.value
@@ -37,7 +66,6 @@
     })
   })
 
-  // settings toggle
   settingsToggle.addEventListener('click', ()=>{
     settingsPanel.classList.toggle('collapsed')
     settingsToggle.textContent = settingsPanel.classList.contains('collapsed') ? 'Settings' : 'Hide'
@@ -49,7 +77,8 @@
     render()
   })
 
-  function loadSettings(){
+  // ── Local storage ───────────────────────────────────────────────────────────
+  function loadSettingsLocal(){
     const raw = localStorage.getItem('sprintSettings')
     if(raw) return JSON.parse(raw)
     const today = new Date()
@@ -64,19 +93,55 @@
     }
   }
 
-  function saveSettings(){
-    localStorage.setItem('sprintSettings', JSON.stringify(settings))
-  }
-
-  function loadData(){
+  function loadDataLocal(){
     const raw = localStorage.getItem('sprintData')
     return raw ? JSON.parse(raw) : {}
   }
 
-  function saveData(){
+  function saveSettingsLocal(){
+    localStorage.setItem('sprintSettings', JSON.stringify(settings))
+  }
+
+  function saveDataLocal(){
     localStorage.setItem('sprintData', JSON.stringify(data))
   }
 
+  // ── Firestore ───────────────────────────────────────────────────────────────
+  let firestoreTimer = null
+
+  function scheduleFirestoreSave(){
+    clearTimeout(firestoreTimer)
+    firestoreTimer = setTimeout(()=>{
+      userDoc.set({ settings, data }).catch(e => console.warn('Firestore save failed', e))
+    }, 600)
+  }
+
+  async function syncFromFirestore(){
+    try {
+      const snap = await userDoc.get()
+      if(snap.exists){
+        const remote = snap.data()
+        if(remote.settings){ settings = remote.settings; saveSettingsLocal(); applySettingsToInputs() }
+        if(remote.data){ data = remote.data; saveDataLocal() }
+        render()
+      }
+    } catch(e){
+      console.warn('Firestore load failed, using local data', e)
+    }
+  }
+
+  // ── Unified save ────────────────────────────────────────────────────────────
+  function saveSettings(){
+    saveSettingsLocal()
+    scheduleFirestoreSave()
+  }
+
+  function saveData(){
+    saveDataLocal()
+    scheduleFirestoreSave()
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
   function formatDateInput(d){
     const dd = new Date(d)
     const y = dd.getFullYear()
@@ -90,7 +155,7 @@
   function daysBetween(a,b){
     const _a = new Date(a.getFullYear(),a.getMonth(),a.getDate())
     const _b = new Date(b.getFullYear(),b.getMonth(),b.getDate())
-    return Math.round(( _b - _a )/(1000*60*60*24))
+    return Math.round((_b - _a)/(1000*60*60*24))
   }
 
   function buildDays(){
@@ -106,10 +171,19 @@
     return arr
   }
 
+  function getEffectiveWeight(days, upToIndex){
+    for(let i = upToIndex - 1; i >= 0; i--){
+      const id = `${settings.startDate}_${days[i].index}`
+      const w = (data[id] || {}).weight
+      if(w) return w
+    }
+    return settings.startWeight ? parseFloat(settings.startWeight) : ''
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────────
   function render(){
     tbody.innerHTML = ''
     const days = buildDays()
-    const total = days.length
     const today = new Date()
 
     days.forEach((dayObj, idx)=>{
@@ -119,32 +193,34 @@
       if(!showAll && dayIndex>7) row.classList.add('hidden-row')
 
       const dateStr = dayObj.date.toLocaleDateString(undefined,{month:'short', day:'numeric'})
-      const isWeightAllowed = (dayIndex % 7 === 0) || dayIndex === total
       const entry = data[id] || {}
+      const displayWeight = entry.weight || getEffectiveWeight(days, idx)
 
-      // determine tri-state for movement and water
       const movementState = entry.movement === 'missed' ? 2 : (entry.movement === true ? 1 : 0)
       const waterState = entry.water === 'missed' ? 2 : (entry.water === true ? 1 : 0)
 
       row.innerHTML = `
         <td>${String(dayIndex).padStart(2,'0')}</td>
         <td>${dateStr}</td>
-        <td><button class="tri-btn movement ${movementState===1? 'done': movementState===2? 'missed':''}" data-key="movement" data-state="${movementState}" aria-label="movement status">${movementState===1? '✔': movementState===2? '✖': ''}</button></td>
-        <td><button class="tri-btn water ${waterState===1? 'done': waterState===2? 'missed':''}" data-key="water" data-state="${waterState}" aria-label="water status">${waterState===1? '✔': waterState===2? '✖': ''}</button></td>
-        <td>${isWeightAllowed ? `<input class="weight" data-key="weight" type="number" step="0.1" value="${entry.weight||''}" placeholder="lbs" />` : `<span class="weight-display">${entry.weight ? (entry.weight + ' lbs') : '--'}</span>`}</td>
-        <td><input class=note data-key="note" value="${entry.note||''}" placeholder="Notes" /></td>
+        <td><button class="tri-btn movement ${movementState===1?'done':movementState===2?'missed':''}" data-key="movement" data-state="${movementState}" aria-label="movement status">${movementState===1?'✔':movementState===2?'✖':''}</button></td>
+        <td><button class="tri-btn water ${waterState===1?'done':waterState===2?'missed':''}" data-key="water" data-state="${waterState}" aria-label="water status">${waterState===1?'✔':waterState===2?'✖':''}</button></td>
+        <td><span class="weight-display">${displayWeight ? (displayWeight + ' lbs') : '--'}</span></td>
+        <td><input class="note" data-key="note" value="${entry.note||''}" placeholder="Notes" /></td>
       `
 
-      // apply 'today' highlight
-      const today = new Date()
-      if(daysBetween(dayObj.date, today) === 0){ row.classList.add('today') }
+      const isFuture = daysBetween(today, dayObj.date) > 0
+      if(daysBetween(dayObj.date, today) === 0) row.classList.add('today')
+      if(isFuture){
+        row.classList.add('future-row')
+        row.querySelectorAll('button,input').forEach(el => el.disabled = true)
+        tbody.appendChild(row)
+        return
+      }
 
-      // attach listeners to tri-state buttons
       row.querySelectorAll('.tri-btn').forEach(btn=>{
-        btn.addEventListener('click', (e)=>{
+        btn.addEventListener('click', ()=>{
           const key = btn.dataset.key
           let state = parseInt(btn.dataset.state,10) || 0
-          // cycle 0 -> 1 -> 2 -> 0
           state = (state + 1) % 3
           btn.dataset.state = state
           btn.classList.remove('done','missed')
@@ -161,7 +237,6 @@
         })
       })
 
-      // attach listeners to other inputs (weight and notes)
       row.querySelectorAll('input').forEach(inp=>{
         inp.addEventListener('change', ()=>{
           const key = inp.dataset.key
@@ -173,11 +248,9 @@
         })
       })
 
-      // make non-week weight display editable on click
       const weightDisplay = row.querySelector('.weight-display')
       if(weightDisplay){
         weightDisplay.addEventListener('click', function handleClick(){
-          const span = weightDisplay
           const input = document.createElement('input')
           input.type = 'number'
           input.step = '0.1'
@@ -185,19 +258,18 @@
           input.placeholder = 'lbs'
           input.value = entry.weight || ''
           input.dataset.key = 'weight'
-          span.replaceWith(input)
+          weightDisplay.replaceWith(input)
           input.focus()
-          input.addEventListener('change', ()=>{
+          input.addEventListener('blur', ()=>{
             if(!data[id]) data[id] = {}
             data[id].weight = input.value ? parseFloat(input.value) : ''
             saveData()
             updateSummary()
-            // replace back with display showing value
             const newSpan = document.createElement('span')
             newSpan.className = 'weight-display'
-            newSpan.textContent = data[id].weight ? (data[id].weight + ' lbs') : '--'
+            const effective = data[id].weight || getEffectiveWeight(days, idx)
+            newSpan.textContent = effective ? (effective + ' lbs') : '--'
             input.replaceWith(newSpan)
-            // reattach click handler
             newSpan.addEventListener('click', handleClick)
           })
         })
@@ -216,24 +288,17 @@
     days.forEach(d=>{
       const id = `${settings.startDate}_${d.index}`
       const entry = data[id] || {}
-      const date = d.date
-      const isPast = daysBetween(date,today) < 0
-      const isFutureOrToday = daysBetween(today,date) >= 0
+      const isPast = daysBetween(d.date, today) < 0
+      const isFutureOrToday = daysBetween(today, d.date) >= 0
       const doneMovement = entry.movement === true
       const doneWater = entry.water === true
       const missedMovement = entry.movement === 'missed'
       const missedWater = entry.water === 'missed'
 
-      if(doneMovement && doneWater) {
-        completed++
-      } else if(missedMovement || missedWater) {
-        missed++
-      } else if(isPast && !(doneMovement && doneWater)) {
-        // past day with no completed goals
-        missed++
-      } else if(isFutureOrToday) {
-        remaining++
-      }
+      if(doneMovement && doneWater) completed++
+      else if(missedMovement || missedWater) missed++
+      else if(isPast && !(doneMovement && doneWater)) missed++
+      else if(isFutureOrToday) remaining++
     })
 
     remainingEl.textContent = remaining
@@ -241,7 +306,8 @@
     missedEl.textContent = missed
   }
 
-  // initial render
+  // ── Boot ─────────────────────────────────────────────────────────────────────
   render()
+  syncFromFirestore()
 
-})();
+})()

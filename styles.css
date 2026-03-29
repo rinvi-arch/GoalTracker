@@ -57,10 +57,12 @@ body{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica
 .tri-btn.water.done{background:var(--blue-soft);color:var(--blue);border-color:rgba(30,111,232,0.12)}
 .tri-btn.water.missed{background:#fff5f0;color:#c04a2a;border-color:rgba(200,120,100,0.08)}
 .weight{width:100px;padding:6px;border-radius:8px;border:1px solid #eee}
-.weight-display{color:var(--muted)}
+.weight-display{color:var(--text); cursor:pointer}
 
 .table-actions{margin-top:12px}
 .hidden-row{display:none}
+.future-row td{opacity:0.35; pointer-events:none}
+.future-row .tri-btn,.future-row input{cursor:not-allowed}
 
 /* Tri-state button for movement/water */
 .tri-btn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:28px;border-radius:6px;border:1px solid #e6e0d8;background:transparent;cursor:pointer;font-size:14px}
