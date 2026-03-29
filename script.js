@@ -26,6 +26,7 @@
 
   // ── DOM refs ────────────────────────────────────────────────────────────────
   const tbody = document.getElementById('sprint-body')
+  const thead = document.getElementById('sprint-head')
   const startInput = document.getElementById('start-date')
   const endInput = document.getElementById('end-date')
   const startWeightInput = document.getElementById('start-weight')
@@ -34,6 +35,9 @@
   const settingsToggle = document.getElementById('settings-toggle')
   const settingsPanel = document.getElementById('settings-panel')
   const toggleBtn = document.getElementById('toggle-show')
+  const goalInput = document.getElementById('goal-input')
+  const goalAddBtn = document.getElementById('goal-add')
+  const goalTagsEl = document.getElementById('goal-tags')
   const remainingEl = document.getElementById('remaining-count')
   const completedEl = document.getElementById('completed-count')
   const missedEl = document.getElementById('missed-count')
@@ -50,6 +54,8 @@
     startWeightInput.value = settings.startWeight || ''
     targetWeightInput.value = settings.targetWeight || ''
     waterLimitInput.value = settings.waterLimit || 2
+    if(!settings.goals) settings.goals = []
+    renderGoalTags()
   }
   applySettingsToInputs()
 
@@ -65,6 +71,40 @@
       render()
     })
   })
+
+  // ── Goal management ─────────────────────────────────────────────────────────
+  function renderGoalTags(){
+    goalTagsEl.innerHTML = ''
+    ;(settings.goals || []).forEach(goal=>{
+      const tag = document.createElement('span')
+      tag.className = 'goal-tag'
+      tag.innerHTML = `${goal.name} <button class="goal-remove" data-id="${goal.id}">×</button>`
+      tag.querySelector('.goal-remove').addEventListener('click', ()=>{
+        settings.goals = settings.goals.filter(g => g.id !== goal.id)
+        saveSettings()
+        renderGoalTags()
+        render()
+      })
+      goalTagsEl.appendChild(tag)
+    })
+  }
+
+  function addGoal(){
+    const name = goalInput.value.trim()
+    if(!name) return
+    if(!settings.goals) settings.goals = []
+    const id = 'goal_' + Date.now().toString(36)
+    settings.goals.push({id, name})
+    saveSettings()
+    renderGoalTags()
+    render()
+    goalInput.value = ''
+  }
+
+  goalAddBtn.addEventListener('click', addGoal)
+  goalInput.addEventListener('keydown', e => { if(e.key === 'Enter') addGoal() })
+
+  renderGoalTags()
 
   settingsToggle.addEventListener('click', ()=>{
     settingsPanel.classList.toggle('collapsed')
@@ -89,7 +129,8 @@
       endDate: formatDateInput(end),
       startWeight: '',
       targetWeight: '',
-      waterLimit: 2
+      waterLimit: 2,
+      goals: []
     }
   }
 
@@ -181,7 +222,21 @@
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
+  function renderHeader(){
+    // Remove any previously added custom goal headers
+    thead.querySelectorAll('.col-goal').forEach(el => el.remove())
+    // Insert before weight column
+    const weightTh = thead.querySelector('.col-weight')
+    ;(settings.goals || []).forEach(goal=>{
+      const th = document.createElement('th')
+      th.className = 'col-goal'
+      th.textContent = goal.name
+      thead.insertBefore(th, weightTh)
+    })
+  }
+
   function render(){
+    renderHeader()
     tbody.innerHTML = ''
     const days = buildDays()
     const today = new Date()
@@ -199,11 +254,17 @@
       const movementState = entry.movement === 'missed' ? 2 : (entry.movement === true ? 1 : 0)
       const waterState = entry.water === 'missed' ? 2 : (entry.water === true ? 1 : 0)
 
+      const goalCells = (settings.goals || []).map(goal=>{
+        const s = entry[goal.id] === 'missed' ? 2 : (entry[goal.id] === true ? 1 : 0)
+        return `<td><button class="tri-btn custom-goal ${s===1?'done':s===2?'missed':''}" data-key="${goal.id}" data-state="${s}" aria-label="${goal.name}">${s===1?'✔':s===2?'✖':''}</button></td>`
+      }).join('')
+
       row.innerHTML = `
         <td>${String(dayIndex).padStart(2,'0')}</td>
         <td>${dateStr}</td>
         <td><button class="tri-btn movement ${movementState===1?'done':movementState===2?'missed':''}" data-key="movement" data-state="${movementState}" aria-label="movement status">${movementState===1?'✔':movementState===2?'✖':''}</button></td>
         <td><button class="tri-btn water ${waterState===1?'done':waterState===2?'missed':''}" data-key="water" data-state="${waterState}" aria-label="water status">${waterState===1?'✔':waterState===2?'✖':''}</button></td>
+        ${goalCells}
         <td><span class="weight-display">${displayWeight ? (displayWeight + ' lbs') : '--'}</span></td>
         <td><input class="note" data-key="note" value="${entry.note||''}" placeholder="Notes" /></td>
       `
@@ -250,24 +311,31 @@
 
       const weightDisplay = row.querySelector('.weight-display')
       if(weightDisplay){
-        weightDisplay.addEventListener('click', function handleClick(){
+        weightDisplay.addEventListener('click', function handleClick(e){
+          const span = e.currentTarget
           const input = document.createElement('input')
           input.type = 'number'
           input.step = '0.1'
           input.className = 'weight'
           input.placeholder = 'lbs'
-          input.value = entry.weight || ''
-          input.dataset.key = 'weight'
-          weightDisplay.replaceWith(input)
+          const originalValue = entry.weight || displayWeight || ''
+          input.value = originalValue
+          span.replaceWith(input)
           input.focus()
+          input.select()
           input.addEventListener('blur', ()=>{
-            if(!data[id]) data[id] = {}
-            data[id].weight = input.value ? parseFloat(input.value) : ''
-            saveData()
-            updateSummary()
+            const newVal = input.value ? parseFloat(input.value) : null
+            const oldVal = entry.weight || null
+            if(newVal !== oldVal){
+              if(!data[id]) data[id] = {}
+              if(newVal) data[id].weight = newVal
+              else delete data[id].weight
+              saveData()
+              updateSummary()
+            }
             const newSpan = document.createElement('span')
             newSpan.className = 'weight-display'
-            const effective = data[id].weight || getEffectiveWeight(days, idx)
+            const effective = (data[id] && data[id].weight) || getEffectiveWeight(days, idx)
             newSpan.textContent = effective ? (effective + ' lbs') : '--'
             input.replaceWith(newSpan)
             newSpan.addEventListener('click', handleClick)

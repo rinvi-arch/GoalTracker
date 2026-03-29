@@ -37,6 +37,13 @@ body{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica
 .controls-row label{font-size:13px; color:var(--text)}
 .controls-row input{margin-left:6px; padding:8px 10px; border-radius:10px; border:1px solid #eee; background:#fff}
 
+.goals-row{margin-top:10px; align-items:center}
+.goals-row input{padding:7px 10px; border-radius:8px; border:1px solid #eee; font-size:13px}
+.goals-row button{padding:7px 14px; border-radius:8px; border:1px solid var(--accent); background:#fff; cursor:pointer; font-size:13px}
+.goal-tags{display:flex; flex-wrap:wrap; gap:6px}
+.goal-tag{display:inline-flex; align-items:center; gap:4px; background:#f3ebe3; border-radius:20px; padding:4px 10px; font-size:12px}
+.goal-remove{background:none; border:none; cursor:pointer; font-size:14px; color:var(--muted); padding:0; line-height:1}
+.col-goal{width:88px}
 .table-wrap{background:transparent; margin-top:18px}
 .sprint-table{width:100%; border-collapse:collapse; background:transparent}
 .sprint-table thead th{font-weight:700; text-align:left; padding:12px 12px; color:var(--muted); font-size:14px}

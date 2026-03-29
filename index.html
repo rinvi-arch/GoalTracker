@@ -60,12 +60,17 @@
         <label>Target (lbs): <input id="target-weight" type="number" step="0.1" placeholder="lbs"/></label>
         <label>Water Limit (L): <input id="water-limit" type="number" step="0.1" value="2"/></label>
       </div>
+      <div class="controls-row goals-row">
+        <div class="goal-tags" id="goal-tags"></div>
+        <input id="goal-input" type="text" placeholder="Add a goal…" maxlength="30" />
+        <button id="goal-add">Add</button>
+      </div>
     </section>
 
     <section class="table-wrap">
       <table class="sprint-table" role="grid">
         <thead>
-          <tr>
+          <tr id="sprint-head">
             <th class="col-day">Day</th>
             <th class="col-date">Date</th>
             <th class="col-move">Movement<span class="col-sub">(Move)</span></th>
