@@ -32,7 +32,6 @@
   const endInput = document.getElementById('end-date')
   const startWeightInput = document.getElementById('start-weight')
   const targetWeightInput = document.getElementById('target-weight')
-  const waterLimitInput = document.getElementById('water-limit')
   const settingsToggle = document.getElementById('settings-toggle')
   const settingsPanel = document.getElementById('settings-panel')
   const toggleBtn = document.getElementById('toggle-show')
@@ -47,23 +46,6 @@
   let settings = loadSettingsLocal()
   let data = loadDataLocal()
   let showAll = false
-
-  // ── Helpers (early definition) ──────────────────────────────────────────────
-  function formatDateInput(d){
-    const dd = new Date(d)
-    const y = dd.getFullYear()
-    const m = String(dd.getMonth()+1).padStart(2,'0')
-    const day = String(dd.getDate()).padStart(2,'0')
-    return `${y}-${m}-${day}`
-  }
-
-  function parseDate(s){ return new Date(s + 'T00:00:00') }
-
-  function daysBetween(a,b){
-    const _a = new Date(a.getFullYear(),a.getMonth(),a.getDate())
-    const _b = new Date(b.getFullYear(),b.getMonth(),b.getDate())
-    return Math.round((_b - _a)/(1000*60*60*24))
-  }
 
   // Initialize default goals if not present
   if(!settings.goals || settings.goals.length === 0){
@@ -87,7 +69,6 @@
     endInput.value = settings.endDate
     startWeightInput.value = settings.startWeight || ''
     targetWeightInput.value = settings.targetWeight || ''
-    waterLimitInput.value = settings.waterLimit || 2
     if(!settings.goals) settings.goals = []
     renderGoalTags()
     updateSprintBrand()
@@ -95,16 +76,13 @@
   applySettingsToInputs()
 
   // ── Settings listeners ──────────────────────────────────────────────────────
-  ;[startInput,endInput,startWeightInput,targetWeightInput,waterLimitInput].forEach(inp=>{
+  ;[startInput,endInput,startWeightInput,targetWeightInput].forEach(inp=>{
     inp.addEventListener('change', ()=>{
       settings.startDate = startInput.value
       settings.endDate = endInput.value
       settings.startWeight = startWeightInput.value
       settings.targetWeight = targetWeightInput.value
-      settings.waterLimit = parseFloat(waterLimitInput.value) || 2
-      saveSettings()
-      updateSprintBrand()
-      render()
+      saveSettings(); updateSprintBrand(); render();
     })
   })
 
@@ -165,7 +143,6 @@
       endDate: formatDateInput(end),
       startWeight: '',
       targetWeight: '',
-      waterLimit: 2,
       goals: []
     }
   }
@@ -218,7 +195,22 @@
     scheduleFirestoreSave()
   }
 
-  // ── Helpers (additional) ────────────────────────────────────────────────────────
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  function formatDateInput(d){
+    const dd = new Date(d)
+    const y = dd.getFullYear()
+    const m = String(dd.getMonth()+1).padStart(2,'0')
+    const day = String(dd.getDate()).padStart(2,'0')
+    return `${y}-${m}-${day}`
+  }
+
+  function parseDate(s){ return new Date(s + 'T00:00:00') }
+
+  function daysBetween(a,b){
+    const _a = new Date(a.getFullYear(),a.getMonth(),a.getDate())
+    const _b = new Date(b.getFullYear(),b.getMonth(),b.getDate())
+    return Math.round((_b - _a)/(1000*60*60*24))
+  }
 
   function buildDays(){
     const start = parseDate(settings.startDate)

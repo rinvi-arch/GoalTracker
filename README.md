@@ -21,13 +21,21 @@ This workspace contains a minimal web app that reproduces the layout from the pr
 - Files added:
 	- [index.html](index.html) — main HTML page
 	- [styles.css](styles.css) — styles for the demo
-	- [script.js](script.js) — populates the 15-day table
-	- [assets/prototype.svg](assets/prototype.svg) — small placeholder asset
+  - [script.js](script.js) — app logic and localStorage
+  - [assets/prototype.svg](assets/prototype.svg) — placeholder asset
 
 ## Run
 Open [index.html](index.html) in your browser (double-click or `open index.html`). No build step required.
 
-If you'd like, I can:
-- Wire persistent storage (localStorage)
-- Add start-date selection and dynamic sprint length
-- Improve styling to more closely match the prototype
+## Features
+- Custom start/end date range with computed sprint duration
+- Daily goal tracking with tri-state actions: done / missed / none
+- Support for adding custom goals (e.g., Night Skincare)
+- Week-based weight entry (every 7th day) plus ongoing weight log
+- Progress summary (completion %, streak, remaining, missed)
+- Sticky header, clean hierarchy, and responsive layout
+
+## Next improvements
+- Add unit toggle (lbs/kg)
+- Add reset button and clear confirmation
+- Add optional chart for weight trend over sprint
