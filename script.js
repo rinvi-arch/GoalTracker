@@ -27,6 +27,7 @@
   // ── DOM refs ────────────────────────────────────────────────────────────────
   const tbody = document.getElementById('sprint-body')
   const thead = document.getElementById('sprint-head')
+  const sprintBrand = document.getElementById('sprint-brand')
   const startInput = document.getElementById('start-date')
   const endInput = document.getElementById('end-date')
   const startWeightInput = document.getElementById('start-weight')
@@ -47,7 +48,40 @@
   let data = loadDataLocal()
   let showAll = false
 
+  // ── Helpers (early definition) ──────────────────────────────────────────────
+  function formatDateInput(d){
+    const dd = new Date(d)
+    const y = dd.getFullYear()
+    const m = String(dd.getMonth()+1).padStart(2,'0')
+    const day = String(dd.getDate()).padStart(2,'0')
+    return `${y}-${m}-${day}`
+  }
+
+  function parseDate(s){ return new Date(s + 'T00:00:00') }
+
+  function daysBetween(a,b){
+    const _a = new Date(a.getFullYear(),a.getMonth(),a.getDate())
+    const _b = new Date(b.getFullYear(),b.getMonth(),b.getDate())
+    return Math.round((_b - _a)/(1000*60*60*24))
+  }
+
+  // Initialize default goals if not present
+  if(!settings.goals || settings.goals.length === 0){
+    settings.goals = [
+      {id: 'movement', name: 'Movement'},
+      {id: 'water', name: 'Water'}
+    ]
+    saveSettingsLocal()
+  }
+
   // ── Init inputs ─────────────────────────────────────────────────────────────
+  function updateSprintBrand(){
+    const start = parseDate(settings.startDate)
+    const end = parseDate(settings.endDate)
+    const len = daysBetween(start, end) + 1
+    sprintBrand.textContent = len + '-Day Sprint'
+  }
+
   function applySettingsToInputs(){
     startInput.value = settings.startDate
     endInput.value = settings.endDate
@@ -56,6 +90,7 @@
     waterLimitInput.value = settings.waterLimit || 2
     if(!settings.goals) settings.goals = []
     renderGoalTags()
+    updateSprintBrand()
   }
   applySettingsToInputs()
 
@@ -68,6 +103,7 @@
       settings.targetWeight = targetWeightInput.value
       settings.waterLimit = parseFloat(waterLimitInput.value) || 2
       saveSettings()
+      updateSprintBrand()
       render()
     })
   })
@@ -182,22 +218,7 @@
     scheduleFirestoreSave()
   }
 
-  // ── Helpers ─────────────────────────────────────────────────────────────────
-  function formatDateInput(d){
-    const dd = new Date(d)
-    const y = dd.getFullYear()
-    const m = String(dd.getMonth()+1).padStart(2,'0')
-    const day = String(dd.getDate()).padStart(2,'0')
-    return `${y}-${m}-${day}`
-  }
-
-  function parseDate(s){ return new Date(s + 'T00:00:00') }
-
-  function daysBetween(a,b){
-    const _a = new Date(a.getFullYear(),a.getMonth(),a.getDate())
-    const _b = new Date(b.getFullYear(),b.getMonth(),b.getDate())
-    return Math.round((_b - _a)/(1000*60*60*24))
-  }
+  // ── Helpers (additional) ────────────────────────────────────────────────────────
 
   function buildDays(){
     const start = parseDate(settings.startDate)
@@ -253,19 +274,18 @@
 
       const movementState = entry.movement === 'missed' ? 2 : (entry.movement === true ? 1 : 0)
       const waterState = entry.water === 'missed' ? 2 : (entry.water === true ? 1 : 0)
+      const isWeightAllowed = (dayIndex % 7 === 0) || dayIndex === days.length
 
       const goalCells = (settings.goals || []).map(goal=>{
         const s = entry[goal.id] === 'missed' ? 2 : (entry[goal.id] === true ? 1 : 0)
-        return `<td><button class="tri-btn custom-goal ${s===1?'done':s===2?'missed':''}" data-key="${goal.id}" data-state="${s}" aria-label="${goal.name}">${s===1?'✔':s===2?'✖':''}</button></td>`
+        return `<td><button class="tri-btn ${goal.id} ${s===1?'done':s===2?'missed':''}" data-key="${goal.id}" data-state="${s}" aria-label="${goal.name}">${s===1?'✔':s===2?'✖':''}</button></td>`
       }).join('')
 
       row.innerHTML = `
         <td>${String(dayIndex).padStart(2,'0')}</td>
         <td>${dateStr}</td>
-        <td><button class="tri-btn movement ${movementState===1?'done':movementState===2?'missed':''}" data-key="movement" data-state="${movementState}" aria-label="movement status">${movementState===1?'✔':movementState===2?'✖':''}</button></td>
-        <td><button class="tri-btn water ${waterState===1?'done':waterState===2?'missed':''}" data-key="water" data-state="${waterState}" aria-label="water status">${waterState===1?'✔':waterState===2?'✖':''}</button></td>
         ${goalCells}
-        <td><span class="weight-display">${displayWeight ? (displayWeight + ' lbs') : '--'}</span></td>
+        <td>${isWeightAllowed ? `<input class="weight" data-key="weight" type="number" step="0.1" value="${entry.weight||''}" placeholder="lbs" />` : `<span class="weight-display">${displayWeight ? (displayWeight + ' lbs') : '--'}</span>`}</td>
         <td><input class="note" data-key="note" value="${entry.note||''}" placeholder="Notes" /></td>
       `
 
@@ -358,20 +378,39 @@
       const entry = data[id] || {}
       const isPast = daysBetween(d.date, today) < 0
       const isFutureOrToday = daysBetween(today, d.date) >= 0
-      const doneMovement = entry.movement === true
-      const doneWater = entry.water === true
-      const missedMovement = entry.movement === 'missed'
-      const missedWater = entry.water === 'missed'
-
-      if(doneMovement && doneWater) completed++
-      else if(missedMovement || missedWater) missed++
-      else if(isPast && !(doneMovement && doneWater)) missed++
+      
+      // Check all goals
+      const allGoalsDone = (settings.goals || []).every(goal => entry[goal.id] === true)
+      const anyGoalMissed = (settings.goals || []).some(goal => entry[goal.id] === 'missed')
+      
+      if(allGoalsDone) completed++
+      else if(anyGoalMissed) missed++
+      else if(isPast && !allGoalsDone) missed++
       else if(isFutureOrToday) remaining++
     })
 
+    const total = days.length
+    const percent = total > 0 ? Math.round((completed / total) * 100) : 0
+    const completionPercent = document.getElementById('completion-percent')
+    const completionBar = document.getElementById('completion-bar')
+    const streakEl = document.getElementById('streak-count')
+    
+    completionPercent.textContent = percent + '%'
+    completionBar.style.width = percent + '%'
     remainingEl.textContent = remaining
     completedEl.textContent = completed
     missedEl.textContent = missed
+    
+    // Calculate streak
+    let streak = 0
+    for(let i = days.length - 1; i >= 0; i--){
+      const id = `${settings.startDate}_${days[i].index}`
+      const entry = data[id] || {}
+      const allDone = (settings.goals || []).every(goal => entry[goal.id] === true)
+      if(allDone) streak++
+      else break
+    }
+    streakEl.textContent = streak
   }
 
   // ── Boot ─────────────────────────────────────────────────────────────────────
